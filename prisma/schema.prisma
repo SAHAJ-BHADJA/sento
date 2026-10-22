@@ -1,0 +1,160 @@
+// Sento data model.
+// The engine is a state machine over Application.status; every transition is
+// recorded as an ApplicationEvent so the "why" behind each action is auditable.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AtsType {
+  GREENHOUSE
+  LEVER
+  ASHBY
+  WORKDAY
+  OTHER
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  POWER
+}
+
+/// The lifecycle of a single application. The worker advances applications
+/// through these states; NEEDS_YOU is the human-in-the-loop checkpoint
+/// (CAPTCHA, ambiguous question, or approval gate).
+enum ApplicationStatus {
+  DISCOVERED // job matched a user, application row created
+  MATCHED    // match score computed and above threshold
+  TAILORING  // résumé / cover letter being generated
+  READY      // materials ready, waiting to submit (or for approval)
+  QUEUED     // scheduled for the submission worker
+  SUBMITTING // browser automation in progress
+  SUBMITTED  // confirmed submitted, receipt captured
+  NEEDS_YOU  // paused for a human (CAPTCHA / unknown question / approval)
+  RESPONDED  // recruiter replied
+  REJECTED   // rejected by employer
+  SKIPPED    // user or engine chose not to apply
+  FAILED     // unrecoverable error
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  passwordHash     String
+  name             String?
+  plan             Plan     @default(FREE)
+  credits          Int      @default(25)
+  stripeCustomerId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  profile      Profile?
+  applications Application[]
+}
+
+/// Everything needed to fill out an application on the user's behalf.
+model Profile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName            String
+  email               String
+  phone               String?
+  location            String?
+  linkedinUrl         String?
+  websiteUrl          String?
+  githubUrl           String?
+  workAuthorization   String? // e.g. "US Citizen", "H1-B", "Requires sponsorship"
+  requiresSponsorship Boolean  @default(false)
+  titles              String[] // target job titles
+  skills              String[] // keyword skills used for matching
+  locationsPreferred  String[] // e.g. ["Remote", "New York, NY"]
+  remoteOnly          Boolean  @default(false)
+  minSalary           Int?
+  baseResumeText      String   @default("") @db.Text
+  // Freeform answers for common custom application questions, keyed by a
+  // normalized question slug (e.g. "why_this_company").
+  customAnswers       Json     @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+/// A company whose ATS board Sento monitors.
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  atsType       AtsType
+  /// The board token / slug used by the ATS API (e.g. Greenhouse board token).
+  atsIdentifier String
+  careersUrl    String?
+  active        Boolean  @default(true)
+  lastPolledAt  DateTime?
+  createdAt     DateTime @default(now())
+
+  jobs Job[]
+
+  @@unique([atsType, atsIdentifier])
+}
+
+model Job {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalId      String
+  title           String
+  location        String?
+  department      String?
+  url             String
+  descriptionText String   @default("") @db.Text
+  remote          Boolean  @default(false)
+  postedAt        DateTime?
+  discoveredAt    DateTime @default(now())
+  raw             Json?
+
+  applications Application[]
+
+  @@unique([companyId, externalId])
+  @@index([discoveredAt])
+}
+
+model Application {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId             String
+  job               Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status            ApplicationStatus @default(DISCOVERED)
+  matchScore        Int               @default(0)
+  matchReasons      String[]
+  tailoredResumeText String?          @db.Text
+  coverLetterText   String?           @db.Text
+  needsReason       String? // populated when status == NEEDS_YOU
+  submittedAt       DateTime?
+  receiptPath       String? // path/URL to the saved submission receipt (screenshot)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  events ApplicationEvent[]
+
+  @@unique([userId, jobId])
+  @@index([status])
+}
+
+model ApplicationEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String // e.g. "discovered", "matched", "tailored", "submitted", "needs_you"
+  message       String
+  data          Json?
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId])
+}
