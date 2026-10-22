@@ -50,17 +50,9 @@ export function scoreJob(profile: Profile, job: Job): MatchResult {
   const reasons: string[] = [];
   const haystack = `${job.title} ${job.descriptionText}`.toLowerCase();
 
-  // Hard sponsorship gate.
-  if (profile.requiresSponsorship) {
-    const noSponsor =
-      /no (visa )?sponsorship|not (able|able to) sponsor|unable to sponsor|without sponsorship|must be (authorized|eligible) to work/.test(
-        haystack,
-      );
-    if (noSponsor) {
-      return { score: 0, reasons: ["posting states it cannot provide visa sponsorship"] };
-    }
-  }
-
+  // Note: hard gates (sponsorship, level, recency, location, experience,
+  // employment type, exclusions) live in src/lib/filters and run before this
+  // scorer. scoreJob is pure ranking of jobs that already passed those filters.
   const titleScore = titleOverlap(profile.titles, job.title); // 0..1
   reasons.push(`title relevance ${(titleScore * 100).toFixed(0)}%`);
 

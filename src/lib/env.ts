@@ -26,6 +26,11 @@ export const env = {
   anthropicApiKey: str("ANTHROPIC_API_KEY"),
   model: str("SENTO_MODEL", "claude-opus-4-8"),
 
+  // OpenAI-compatible fallback (free options: Groq, Ollama, OpenRouter, Gemini).
+  llmBaseUrl: str("SENTO_LLM_BASE_URL"),
+  llmModel: str("SENTO_LLM_MODEL"),
+  llmApiKey: str("SENTO_LLM_API_KEY"),
+
   stripeSecretKey: str("STRIPE_SECRET_KEY"),
   stripeWebhookSecret: str("STRIPE_WEBHOOK_SECRET"),
 
@@ -36,7 +41,8 @@ export const env = {
 };
 
 export const capabilities = {
-  tailoring: () => env.anthropicApiKey.length > 0,
+  tailoring: () =>
+    env.anthropicApiKey.length > 0 || (env.llmBaseUrl.length > 0 && env.llmModel.length > 0),
   billing: () => env.stripeSecretKey.length > 0,
   database: () => env.databaseUrl.length > 0,
 };

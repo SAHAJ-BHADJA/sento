@@ -1,5 +1,5 @@
 import type { Job, Profile } from "@prisma/client";
-import { complete } from "../anthropic";
+import { complete } from "../llm";
 import { capabilities } from "../env";
 
 export interface TailoredMaterials {

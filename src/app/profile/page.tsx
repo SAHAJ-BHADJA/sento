@@ -29,8 +29,32 @@ interface ProfileState {
   locationsPreferred: string;
   remoteOnly: boolean;
   minSalary: string;
+  maxJobAgeHours: string;
+  maxExperienceYears: string;
+  allowedLevels: string[];
+  allowedEmploymentTypes: string[];
+  strictLocations: boolean;
+  remoteOk: boolean;
+  requirePositiveSponsorship: boolean;
+  excludeKeywords: string;
   baseResumeText: string;
 }
+
+const LEVELS: { value: string; label: string }[] = [
+  { value: "intern", label: "Intern" },
+  { value: "entry", label: "Entry" },
+  { value: "mid", label: "Mid" },
+  { value: "senior", label: "Senior" },
+  { value: "lead", label: "Lead+" },
+];
+
+const EMPLOYMENT_TYPES: { value: string; label: string }[] = [
+  { value: "full_time", label: "Full-time" },
+  { value: "part_time", label: "Part-time" },
+  { value: "contract", label: "Contract" },
+  { value: "internship", label: "Internship" },
+  { value: "temporary", label: "Temporary" },
+];
 
 const EMPTY: ProfileState = {
   fullName: "",
@@ -47,6 +71,14 @@ const EMPTY: ProfileState = {
   locationsPreferred: "",
   remoteOnly: false,
   minSalary: "",
+  maxJobAgeHours: "",
+  maxExperienceYears: "",
+  allowedLevels: [],
+  allowedEmploymentTypes: [],
+  strictLocations: false,
+  remoteOk: true,
+  requirePositiveSponsorship: false,
+  excludeKeywords: "",
   baseResumeText: "",
 };
 
@@ -86,6 +118,17 @@ export default function ProfilePage() {
           locationsPreferred: (profile.locationsPreferred ?? []).join(", "),
           remoteOnly: Boolean(profile.remoteOnly),
           minSalary: profile.minSalary ? String(profile.minSalary) : "",
+          maxJobAgeHours: profile.maxJobAgeHours ? String(profile.maxJobAgeHours) : "",
+          maxExperienceYears:
+            profile.maxExperienceYears !== null && profile.maxExperienceYears !== undefined
+              ? String(profile.maxExperienceYears)
+              : "",
+          allowedLevels: profile.allowedLevels ?? [],
+          allowedEmploymentTypes: profile.allowedEmploymentTypes ?? [],
+          strictLocations: Boolean(profile.strictLocations),
+          remoteOk: profile.remoteOk === undefined ? true : Boolean(profile.remoteOk),
+          requirePositiveSponsorship: Boolean(profile.requirePositiveSponsorship),
+          excludeKeywords: (profile.excludeKeywords ?? []).join(", "),
           baseResumeText: profile.baseResumeText ?? "",
         });
         setAnswers((profile.customAnswers as Record<string, string>) ?? {});
@@ -106,6 +149,9 @@ export default function ProfilePage() {
         skills: toList(p.skills),
         locationsPreferred: toList(p.locationsPreferred),
         minSalary: p.minSalary ? Number.parseInt(p.minSalary, 10) : null,
+        maxJobAgeHours: p.maxJobAgeHours ? Number.parseInt(p.maxJobAgeHours, 10) : null,
+        maxExperienceYears: p.maxExperienceYears !== "" ? Number.parseInt(p.maxExperienceYears, 10) : null,
+        excludeKeywords: toList(p.excludeKeywords),
         customAnswers: Object.fromEntries(
           Object.entries(answers).filter(([, v]) => v && v.trim()),
         ),
@@ -135,6 +181,11 @@ export default function ProfilePage() {
 
   const set = (k: keyof ProfileState, v: string | boolean) => setP((s) => ({ ...s, [k]: v }));
   const arrayHint = (label: string) => `${label} (comma or newline separated)`;
+  const toggleArr = (k: "allowedLevels" | "allowedEmploymentTypes", v: string) =>
+    setP((s) => {
+      const cur = s[k];
+      return { ...s, [k]: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] };
+    });
 
   return (
     <div>
@@ -177,6 +228,88 @@ export default function ProfilePage() {
             <label className="flex items-center gap-2 pt-7 text-sm">
               <input type="checkbox" checked={p.remoteOnly} onChange={(e) => set("remoteOnly", e.target.checked)} />
               Remote only
+            </label>
+          </div>
+        </section>
+
+        <section className="card space-y-4">
+          <div>
+            <h2 className="text-lg font-medium">Hard filters</h2>
+            <p className="text-sm text-slate-400">
+              Applied before scoring. Blank = no filter. These remove jobs that don&apos;t fit before Sento ever ranks or applies.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Posted within (hours)"
+              value={p.maxJobAgeHours}
+              onChange={(v) => set("maxJobAgeHours", v.replace(/[^0-9]/g, ""))}
+              placeholder="24"
+            />
+            <Field
+              label="Max required experience (years)"
+              value={p.maxExperienceYears}
+              onChange={(v) => set("maxExperienceYears", v.replace(/[^0-9]/g, ""))}
+              placeholder="2"
+            />
+          </div>
+
+          <div>
+            <span className="mb-1 block text-sm text-slate-300">Allowed levels</span>
+            <div className="flex flex-wrap gap-2">
+              {LEVELS.map((l) => (
+                <button
+                  type="button"
+                  key={l.value}
+                  onClick={() => toggleArr("allowedLevels", l.value)}
+                  className={`badge ${p.allowedLevels.includes(l.value) ? "bg-accent text-white" : "bg-white/10 text-slate-300"}`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="mb-1 block text-sm text-slate-300">Employment types</span>
+            <div className="flex flex-wrap gap-2">
+              {EMPLOYMENT_TYPES.map((t) => (
+                <button
+                  type="button"
+                  key={t.value}
+                  onClick={() => toggleArr("allowedEmploymentTypes", t.value)}
+                  className={`badge ${p.allowedEmploymentTypes.includes(t.value) ? "bg-accent text-white" : "bg-white/10 text-slate-300"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Field
+            label={arrayHint("Exclude jobs mentioning")}
+            value={p.excludeKeywords}
+            onChange={(v) => set("excludeKeywords", v)}
+            placeholder="clearance, senior, staff, on-site only"
+          />
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={p.strictLocations} onChange={(e) => set("strictLocations", e.target.checked)} />
+              Strict location — only jobs in my preferred locations (or remote)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={p.remoteOk} onChange={(e) => set("remoteOk", e.target.checked)} />
+              Remote roles always satisfy location
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={p.requirePositiveSponsorship}
+                onChange={(e) => set("requirePositiveSponsorship", e.target.checked)}
+              />
+              Only roles that explicitly offer visa sponsorship (requires &quot;I require sponsorship&quot; above)
             </label>
           </div>
         </section>

@@ -4,6 +4,7 @@ import { env } from "./env";
 import { logger } from "./log";
 import { fetchBoard } from "./ats/index";
 import { scoreJob } from "./match/index";
+import { applyFilters } from "./filters/index";
 import { tailor } from "./tailor/index";
 import { submitApplication } from "./submit/index";
 
@@ -86,6 +87,9 @@ export async function matchForUser(userId: string): Promise<number> {
   let created = 0;
   for (const job of jobs) {
     if (seen.has(job.id)) continue;
+    // Hard filters first (recency, level, experience, location, type, sponsorship, exclusions).
+    const filter = applyFilters(profile, job);
+    if (!filter.passed) continue;
     const { score, reasons } = scoreJob(profile, job);
     if (score < env.matchThreshold) continue;
     const app = await prisma.application.create({

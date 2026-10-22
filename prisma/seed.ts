@@ -3,6 +3,13 @@
 // resolve are simply skipped at discovery time.
 import { PrismaClient } from "@prisma/client";
 
+// Load .env when run via tsx (Prisma Client does not read .env on its own).
+try {
+  (process as unknown as { loadEnvFile?: (p?: string) => void }).loadEnvFile?.(".env");
+} catch {
+  // rely on ambient env
+}
+
 const prisma = new PrismaClient();
 
 const EXAMPLE_COMPANIES = [

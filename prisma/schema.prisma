@@ -78,6 +78,17 @@ model Profile {
   locationsPreferred  String[] // e.g. ["Remote", "New York, NY"]
   remoteOnly          Boolean  @default(false)
   minSalary           Int?
+
+  // Structured hard filters applied during matching (empty/null = no-op).
+  maxJobAgeHours             Int?      // e.g. 24 for "last 24 hours"
+  maxExperienceYears         Int?      // e.g. 2 for "up to 2 years"
+  allowedLevels              String[]  // intern | entry | mid | senior | lead
+  allowedEmploymentTypes     String[]  // full_time | part_time | contract | internship | temporary
+  strictLocations            Boolean   @default(false) // hard location include-list
+  remoteOk                   Boolean   @default(true)  // remote roles satisfy location
+  requirePositiveSponsorship Boolean   @default(false) // only roles that explicitly sponsor
+  excludeKeywords            String[]  // drop jobs mentioning any of these
+
   baseResumeText      String   @default("") @db.Text
   // Freeform answers for common custom application questions, keyed by a
   // normalized question slug (e.g. "why_this_company").
